@@ -56,11 +56,15 @@ Copy-Item (Join-Path $ProjectRoot "ASSETS.md") $PortableDirectory
 Copy-Item (Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md") $PortableDirectory
 Compress-Archive -Path (Join-Path $PortableDirectory "*") -DestinationPath $PortableZip -CompressionLevel Optimal
 
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
 $Hash = Get-FileHash $PortableZip -Algorithm SHA256
-Set-Content -Path "$PortableZip.sha256" -Value "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $PortableZip -Leaf)" -Encoding utf8NoBOM
+$Checksum = "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $PortableZip -Leaf)`n"
+[System.IO.File]::WriteAllText("$PortableZip.sha256", $Checksum, $Utf8NoBom)
 
 $Hash = Get-FileHash $DirectExecutable -Algorithm SHA256
-Set-Content -Path "$DirectExecutable.sha256" -Value "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $DirectExecutable -Leaf)" -Encoding utf8NoBOM
+$Checksum = "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $DirectExecutable -Leaf)`n"
+[System.IO.File]::WriteAllText("$DirectExecutable.sha256", $Checksum, $Utf8NoBom)
 
 Write-Host "发布完成：$DirectExecutable"
 Write-Host "便携压缩包：$PortableZip"
