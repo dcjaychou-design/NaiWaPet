@@ -1,14 +1,14 @@
 [CmdletBinding()]
 param(
     [string]$Version = "1.0.0",
-    [switch]$SkipTests,
-    [switch]$BuildInstaller
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Artifacts = Join-Path $ProjectRoot "artifacts"
 $PublishDirectory = Join-Path $Artifacts "publish"
+$DirectExecutable = Join-Path $Artifacts "NaiWaPet-$Version-win-x64.exe"
 $PortableDirectory = Join-Path $Artifacts "NaiWaPet-$Version-win-x64"
 $PortableZip = Join-Path $Artifacts "NaiWaPet-$Version-win-x64-portable.zip"
 
@@ -25,6 +25,15 @@ if (Test-Path $PortableDirectory) {
 if (Test-Path $PortableZip) {
     Remove-Item $PortableZip -Force
 }
+if (Test-Path "$PortableZip.sha256") {
+    Remove-Item "$PortableZip.sha256" -Force
+}
+if (Test-Path $DirectExecutable) {
+    Remove-Item $DirectExecutable -Force
+}
+if (Test-Path "$DirectExecutable.sha256") {
+    Remove-Item "$DirectExecutable.sha256" -Force
+}
 
 dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
     --configuration Release `
@@ -37,6 +46,7 @@ dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
 
 & (Join-Path $ProjectRoot "verify-windows.ps1") -Executable "artifacts/publish/NaiWaPet.exe"
 
+Copy-Item (Join-Path $PublishDirectory "NaiWaPet.exe") $DirectExecutable
 New-Item -ItemType Directory -Path $PortableDirectory -Force | Out-Null
 Copy-Item (Join-Path $PublishDirectory "NaiWaPet.exe") $PortableDirectory
 Copy-Item (Join-Path $ProjectRoot "README.md") $PortableDirectory
@@ -49,23 +59,8 @@ Compress-Archive -Path (Join-Path $PortableDirectory "*") -DestinationPath $Port
 $Hash = Get-FileHash $PortableZip -Algorithm SHA256
 Set-Content -Path "$PortableZip.sha256" -Value "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $PortableZip -Leaf)" -Encoding utf8NoBOM
 
-if ($BuildInstaller) {
-    $Compiler = Get-Command iscc.exe -ErrorAction SilentlyContinue
-    if ($null -eq $Compiler) {
-        $Candidates = @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-        )
-        $CompilerPath = $Candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    } else {
-        $CompilerPath = $Compiler.Source
-    }
+$Hash = Get-FileHash $DirectExecutable -Algorithm SHA256
+Set-Content -Path "$DirectExecutable.sha256" -Value "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $DirectExecutable -Leaf)" -Encoding utf8NoBOM
 
-    if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
-        throw "未找到 Inno Setup 6。请安装后重试 -BuildInstaller。"
-    }
-
-    & $CompilerPath "/DMyAppVersion=$Version" (Join-Path $ProjectRoot "installer/NaiWaPet.iss")
-}
-
-Write-Host "发布完成：$PortableZip"
+Write-Host "发布完成：$DirectExecutable"
+Write-Host "便携压缩包：$PortableZip"

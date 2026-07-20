@@ -13,7 +13,7 @@ All notable changes are documented here. The format follows Keep a Changelog, an
 - Transparent, topmost WPF desktop-pet window with per-frame pixel hit testing.
 - Dragging, throwing, gravity, bouncing, mouse-wheel scaling and optional roaming.
 - System tray controls, settings window, click-through mode and Windows startup option.
-- Single-file Windows 11 x64 portable build and per-user installer.
+- Directly runnable single-file Windows 11 x64 executable and portable ZIP package.
 - Reproducible asset pipeline, integrity verifier, core tests and GitHub Actions workflows.
 
 ### Changed

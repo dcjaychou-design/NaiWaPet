@@ -10,19 +10,13 @@
 
 脚本会还原、以 Release 编译、运行核心测试，并在找到 Python 时校验所有已提交素材。
 
-## 生成便携版和安装包
+## 生成便携发布物
 
 ```powershell
 ./package.ps1 -Version 1.0.0
 ```
 
-这会生成单文件、自包含的 `win-x64` 程序，以及便携 ZIP 和 SHA-256。安装 Inno Setup 6 后可再运行：
-
-```powershell
-./package.ps1 -Version 1.0.0 -SkipTests -BuildInstaller
-```
-
-安装包按当前用户安装到 `%LOCALAPPDATA%\Programs\NaiWaPet`，无需管理员权限。
+这会生成可直接运行的单文件、自包含 `win-x64` 程序、便携 ZIP，以及对应的 SHA-256 校验文件。
 
 ## 重新生成动画素材
 
@@ -39,7 +33,7 @@ tools/.venv/Scripts/python tools/verify_assets.py
 
 ## GitHub 发布
 
-推送普通提交或 Pull Request 会运行 `CI`。创建版本标签会自动构建便携版和安装包：
+推送普通提交或 Pull Request 会运行 `CI`。创建版本标签会自动构建单文件 EXE 和便携 ZIP：
 
 ```powershell
 git tag v1.0.0
