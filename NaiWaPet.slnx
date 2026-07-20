@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/NaiWaPet.Core/NaiWaPet.Core.csproj" />
+  <Project Path="src/NaiWaPet/NaiWaPet.csproj" />
+  <Project Path="tests/NaiWaPet.Core.Tests/NaiWaPet.Core.Tests.csproj" />
+</Solution>

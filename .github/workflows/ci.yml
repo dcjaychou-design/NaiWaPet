@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify committed animation assets
+        run: python tools/verify_assets.py
+
+      - name: Restore
+        run: dotnet restore NaiWaPet.slnx
+
+      - name: Build
+        run: dotnet build NaiWaPet.slnx --configuration Release --no-restore
+
+      - name: Run core tests
+        run: dotnet run --project tests/NaiWaPet.Core.Tests/NaiWaPet.Core.Tests.csproj --configuration Release --no-build
+
+      - name: Publish Windows x64 single file
+        run: dotnet publish src/NaiWaPet/NaiWaPet.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/publish -p:DebugSymbols=false -p:DebugType=None
+
+      - name: Smoke test published executable
+        shell: pwsh
+        run: ./verify-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NaiWaPet-win-x64-ci
+          path: artifacts/publish/NaiWaPet.exe
+          if-no-files-found: error

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "frameWidth": 294,
+  "frameHeight": 400,
+  "framesPerSecond": 30,
+  "totalFrames": 462,
+  "columns": 8,
+  "rows": 8,
+  "idleFrame": 0,
+  "hitMaskFile": "hitmask.bin",
+  "atlases": [
+    {
+      "file": "laugh-00.png",
+      "firstFrame": 0,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-01.png",
+      "firstFrame": 64,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-02.png",
+      "firstFrame": 128,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-03.png",
+      "firstFrame": 192,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-04.png",
+      "firstFrame": 256,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-05.png",
+      "firstFrame": 320,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-06.png",
+      "firstFrame": 384,
+      "frameCount": 64
+    },
+    {
+      "file": "laugh-07.png",
+      "firstFrame": 448,
+      "frameCount": 14
+    }
+  ],
+  "source": {
+    "file": "assets/source/Naiwa.mp4",
+    "sha256": "1c05a2a8af2052f2f0a5909f917cf3f1146215a3e5b51542a2f349dc05987e08"
+  }
+}
