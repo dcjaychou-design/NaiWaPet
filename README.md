@@ -1,14 +1,14 @@
 # 奶蛙桌宠（NaiWaPet）
 
-一个专为 Windows 11 x64 重做的透明桌面宠物。单击奶蛙，会完整播放约 15.4 秒的“奶蛙捧腹大笑”动作：拍肚子、扶头、后仰、笑倒在地，再恢复站立。程序默认播放原视频笑声，可随时在托盘或设置中关闭。
+NaiWaPet 是一款面向 Windows 11 x64 的透明桌面宠物。单击奶蛙即可完整播放约 15.4 秒的“奶蛙捧腹大笑”动作：拍肚子、扶头、后仰、笑倒在地，再恢复站立。程序默认播放原视频笑声，可随时在托盘或设置中关闭。
 
 ![奶蛙捧腹大笑透明预览](docs/preview.png)
 
-## 这次重做包含什么
+## 功能特性
 
-- 直接从完整参考视频生成 462 帧、30 FPS 透明动画，不再用两张静态图模拟动作。
+- 从完整参考视频生成 462 帧、30 FPS 透明动画。
 - 无白色窗口、无视频矩形背景；每帧具有独立透明通道和像素级点击区域。
-- 单文件、自包含的 Windows x64 程序，普通同学的 Windows 11 电脑无需预装 .NET。
+- 单文件、自包含的 Windows x64 程序，无需预装 .NET 运行时。
 - 原笑声音轨完整保留，第一次启动默认开启，也可一键关闭。
 - 默认显示为 80% 大小，并可用鼠标滚轮或设置滑块在 50%～180% 之间调整。
 - 拖动移动、快速甩动弹跳、滚轮缩放、偶尔蹦动、始终置顶、鼠标穿透。
@@ -37,17 +37,17 @@
 
 开启“鼠标穿透”后，奶蛙不会阻挡下方窗口；此时请通过任务栏右下角的奶蛙托盘图标恢复。
 
-## 为什么采用这套实现
+## 设计与参考
 
-重做前对多个公开桌宠项目进行了比较：
+项目设计参考了以下公开项目的交互方式与工程实践：
 
-- [CHENGONGSHUO/Naiwa](https://github.com/CHENGONGSHUO/Naiwa) 提供了参考视频和最小 WinUI 3 播放示例，但仍是普通白底窗口，不是完整桌宠。
-- [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat) 展示了成熟桌宠应具有的托盘、交互和发布体验。
-- [liwenka1/bongo-cat-next](https://github.com/liwenka1/bongo-cat-next) 展示了动画资源与桌宠逻辑分层的做法。
-- [gil/shimeji-ee](https://github.com/gil/shimeji-ee) 的行为式桌宠启发了漫游、拖动和物理反馈。
-- [KurtVelasco/Desktop_Gremlin](https://github.com/KurtVelasco/Desktop_Gremlin) 证明 WPF 适合实现轻量透明 Windows 桌宠。
+- [CHENGONGSHUO/Naiwa](https://github.com/CHENGONGSHUO/Naiwa)：参考视频、素材来源与基础 WinUI 3 播放示例。
+- [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat)：托盘交互与桌面应用发布体验。
+- [liwenka1/bongo-cat-next](https://github.com/liwenka1/bongo-cat-next)：动画资源与桌宠逻辑分层。
+- [gil/shimeji-ee](https://github.com/gil/shimeji-ee)：行为式桌宠、漫游与物理反馈。
+- [KurtVelasco/Desktop_Gremlin](https://github.com/KurtVelasco/Desktop_Gremlin)：WPF 透明桌宠实现方式。
 
-本项目没有复制这些项目的程序代码；应用逻辑从零使用 C# / WPF 编写。动画素材来源与处理过程详见 [ASSETS.md](ASSETS.md)。
+应用代码使用 C# / WPF 独立实现。动画素材来源与处理过程详见 [ASSETS.md](ASSETS.md)。
 
 ## 本地构建
 

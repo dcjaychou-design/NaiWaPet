@@ -19,7 +19,7 @@ All notable changes are documented here. The format follows Keep a Changelog, an
 ### Changed
 
 - Use an 80% first-run scale, adjustable from 50% to 180% by mouse wheel or settings slider.
-- Preserve compatible local settings while migrating earlier development settings to the final first-release defaults.
+- Normalize existing local settings to the final first-release defaults while preserving compatible values.
 
 ### Fixed
 
