@@ -30,7 +30,7 @@ MinVersion=10.0.22000
 LicenseFile=..\LICENSE
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 
 [Files]
 Source: "..\artifacts\publish\NaiWaPet.exe"; DestDir: "{app}"; Flags: ignoreversion
