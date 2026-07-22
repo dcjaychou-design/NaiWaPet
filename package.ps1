@@ -9,7 +9,7 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 [xml]$BuildProperties = Get-Content (Join-Path $ProjectRoot "Directory.Build.props") -Raw
 $SourceVersion = [string]$BuildProperties.Project.PropertyGroup.Version
 $FileVersion = [string]$BuildProperties.Project.PropertyGroup.FileVersion
-$RuntimeVersion = [string]$BuildProperties.Project.PropertyGroup.RuntimeFrameworkVersion
+$RuntimeVersion = [string]$BuildProperties.Project.PropertyGroup.PinnedRuntimeVersion
 
 $VersionPattern = '^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
 if ($SourceVersion -notmatch $VersionPattern) {

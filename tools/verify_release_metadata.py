@@ -57,7 +57,7 @@ def verify(root: Path, expected_tag: str | None) -> str:
     require(property_value(properties, "InformationalVersion") == version, "InformationalVersion is out of sync")
     require(property_value(properties, "IncludeSourceRevisionInInformationalVersion") == "false",
             "InformationalVersion must remain identical to the release version")
-    require(property_value(properties, "RuntimeFrameworkVersion") == EXPECTED_RUNTIME, "runtime version is not pinned")
+    require(property_value(properties, "PinnedRuntimeVersion") == EXPECTED_RUNTIME, "runtime version is not pinned")
     if expected_tag is not None:
         require(expected_tag == f"v{version}", f"tag {expected_tag} does not match source version {version}")
 
@@ -68,6 +68,9 @@ def verify(root: Path, expected_tag: str | None) -> str:
     project = ET.parse(root / "src/NaiWaPet/NaiWaPet.csproj").getroot()
     for property_name in ("Version", "AssemblyVersion", "FileVersion", "InformationalVersion"):
         require(project.find(f".//{property_name}") is None, f"{property_name} must not be duplicated in NaiWaPet.csproj")
+    require(project.findtext(".//RuntimeFrameworkVersion") == "$(PinnedRuntimeVersion)",
+            "NaiWaPet.csproj must consume the central runtime version")
+    require(project.findtext(".//TargetLatestRuntimePatch") == "false", "runtime patch roll-forward must be disabled")
     manifest = ET.parse(root / "src/NaiWaPet/app.manifest").getroot()
     identity = manifest.find("{urn:schemas-microsoft-com:asm.v1}assemblyIdentity")
     require(identity is not None and identity.get("version") == f"{numeric}.0", "Windows manifest version is out of sync")
