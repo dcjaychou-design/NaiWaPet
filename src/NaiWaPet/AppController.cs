@@ -13,6 +13,7 @@ internal sealed class AppController : IDisposable
     private SpriteAnimationPlayer? player;
     private PetWindow? petWindow;
     private SettingsWindow? settingsWindow;
+    private NoticesWindow? noticesWindow;
     private TrayIconService? trayIcon;
     private bool disposed;
     private bool exiting;
@@ -31,6 +32,7 @@ internal sealed class AppController : IDisposable
         trayIcon.ToggleVisibilityRequested += OnToggleVisibilityRequested;
         trayIcon.SettingsRequested += OnSettingsRequested;
         trayIcon.ResetPositionRequested += OnResetPositionRequested;
+        trayIcon.NoticesRequested += OnNoticesRequested;
         trayIcon.ExitRequested += OnExitRequested;
         trayIcon.ToggleRequested += OnToggleRequested;
         trayIcon.Update(settings);
@@ -65,6 +67,7 @@ internal sealed class AppController : IDisposable
 
         settingsStore.Save(settings);
         settingsWindow?.Close();
+        noticesWindow?.Close();
         petWindow?.Close();
         System.Windows.Application.Current.Shutdown();
     }
@@ -94,6 +97,8 @@ internal sealed class AppController : IDisposable
         ShowPetWithoutAnimation();
         petWindow?.ResetPosition();
     }
+
+    private void OnNoticesRequested(object? sender, EventArgs e) => ShowNotices();
 
     private void OnExitRequested(object? sender, EventArgs e) => Exit();
 
@@ -137,6 +142,7 @@ internal sealed class AppController : IDisposable
         settingsWindow.SettingsChanged += OnSettingsChanged;
         settingsWindow.ResetPositionRequested += OnResetPositionRequested;
         settingsWindow.PlayRequested += OnPlayRequested;
+        settingsWindow.NoticesRequested += OnNoticesRequested;
         settingsWindow.Closed += OnSettingsWindowClosed;
         settingsWindow.Show();
         settingsWindow.Activate();
@@ -154,8 +160,34 @@ internal sealed class AppController : IDisposable
         settingsWindow.SettingsChanged -= OnSettingsChanged;
         settingsWindow.ResetPositionRequested -= OnResetPositionRequested;
         settingsWindow.PlayRequested -= OnPlayRequested;
+        settingsWindow.NoticesRequested -= OnNoticesRequested;
         settingsWindow.Closed -= OnSettingsWindowClosed;
         settingsWindow = null;
+    }
+
+    private void ShowNotices()
+    {
+        if (noticesWindow is not null)
+        {
+            noticesWindow.Activate();
+            return;
+        }
+
+        noticesWindow = new NoticesWindow();
+        noticesWindow.Closed += OnNoticesWindowClosed;
+        noticesWindow.Show();
+        noticesWindow.Activate();
+    }
+
+    private void OnNoticesWindowClosed(object? sender, EventArgs e)
+    {
+        if (noticesWindow is null)
+        {
+            return;
+        }
+
+        noticesWindow.Closed -= OnNoticesWindowClosed;
+        noticesWindow = null;
     }
 
     private void ApplySettings()

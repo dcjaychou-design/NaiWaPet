@@ -14,6 +14,8 @@ try {
 
     $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
     if ($null -ne $PythonCommand) {
+        & $PythonCommand.Source tools/verify_release_metadata.py
+        & $PythonCommand.Source tools/verify_markdown_links.py
         & $PythonCommand.Source tools/verify_assets.py
     } else {
         Write-Warning "未找到 Python，已跳过提交素材的离线校验。"

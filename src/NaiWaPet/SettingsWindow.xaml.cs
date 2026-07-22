@@ -29,6 +29,8 @@ internal sealed partial class SettingsWindow : Window
 
     public event EventHandler? PlayRequested;
 
+    public event EventHandler? NoticesRequested;
+
     public void RefreshFromSettings()
     {
         initialized = false;
@@ -77,6 +79,8 @@ internal sealed partial class SettingsWindow : Window
     private void OnResetPosition(object sender, RoutedEventArgs e) => ResetPositionRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnPlay(object sender, RoutedEventArgs e) => PlayRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnNotices(object sender, RoutedEventArgs e) => NoticesRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();
 }

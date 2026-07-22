@@ -29,6 +29,7 @@ internal sealed class TrayIconService : IDisposable
         startupItem = CreateToggle("开机启动", PetSetting.StartWithWindows);
         var settingsItem = new ToolStripMenuItem("设置…", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
         var resetItem = new ToolStripMenuItem("重置位置", null, (_, _) => ResetPositionRequested?.Invoke(this, EventArgs.Empty));
+        var noticesItem = new ToolStripMenuItem("关于与开源许可…", null, (_, _) => NoticesRequested?.Invoke(this, EventArgs.Empty));
         var exitItem = new ToolStripMenuItem("退出", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         menu.Items.AddRange([
@@ -45,6 +46,7 @@ internal sealed class TrayIconService : IDisposable
             new ToolStripSeparator(),
             settingsItem,
             resetItem,
+            noticesItem,
             new ToolStripSeparator(),
             exitItem,
         ]);
@@ -70,6 +72,8 @@ internal sealed class TrayIconService : IDisposable
     public event EventHandler? SettingsRequested;
 
     public event EventHandler? ResetPositionRequested;
+
+    public event EventHandler? NoticesRequested;
 
     public event EventHandler? ExitRequested;
 
