@@ -42,6 +42,8 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-`release.yml` 会运行测试、构建 Windows x64 发布物、核对程序文件版本、执行单文件冒烟测试、生成哈希，并创建 GitHub Release。
+`release.yml` 会运行测试、构建 Windows x64 发布物、核对程序文件版本、执行单文件冒烟测试、生成哈希，并创建 GitHub Release。每个版本还必须提供 `docs/releases/版本号.md` 作为面向使用者的发布说明。
+
+如果同一标签的 Release 已经存在，工作流会保留发布页面，覆盖更新 EXE、ZIP 和两个 SHA-256 文件，同时更新发布说明；上传完成后还会重新下载四个文件并逐一比对 SHA-256，避免源码、说明和下载文件不同步。发布工作流也可以在 GitHub Actions 页面输入已有标签后手动重跑。
 
 普通 CI 也可在 GitHub Actions 页面手动运行。同一分支有新提交时，旧的未完成 CI 会自动取消；单次任务最多运行 30 分钟。
