@@ -5,6 +5,21 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$VersionPattern = '^(?<Major>0|[1-9]\d*)\.(?<Minor>0|[1-9]\d*)\.(?<Patch>0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
+$VersionMatch = [System.Text.RegularExpressions.Regex]::Match($Version, $VersionPattern)
+if (-not $VersionMatch.Success) {
+    throw "版本号必须是有效的语义化版本，例如 1.0.0 或 1.0.0-beta.1。"
+}
+$FileVersionParts = @()
+foreach ($PartName in @("Major", "Minor", "Patch")) {
+    $PartValue = 0
+    if (-not [int]::TryParse($VersionMatch.Groups[$PartName].Value, [ref]$PartValue) -or $PartValue -gt 65534) {
+        throw "版本号的每个数字部分必须位于 0 到 65534 之间。"
+    }
+    $FileVersionParts += $PartValue
+}
+$FileVersion = "$($FileVersionParts -join '.').0"
+
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Artifacts = Join-Path $ProjectRoot "artifacts"
 $PublishDirectory = Join-Path $Artifacts "publish"
@@ -41,10 +56,15 @@ dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
     --self-contained true `
     --output $PublishDirectory `
     -p:Version=$Version `
+    -p:AssemblyVersion=$FileVersion `
+    -p:FileVersion=$FileVersion `
+    -p:InformationalVersion=$Version `
     -p:DebugSymbols=false `
     -p:DebugType=None
 
-& (Join-Path $ProjectRoot "verify-windows.ps1") -Executable "artifacts/publish/NaiWaPet.exe"
+& (Join-Path $ProjectRoot "verify-windows.ps1") `
+    -Executable "artifacts/publish/NaiWaPet.exe" `
+    -ExpectedFileVersion $FileVersion
 
 Copy-Item (Join-Path $PublishDirectory "NaiWaPet.exe") $DirectExecutable
 New-Item -ItemType Directory -Path $PortableDirectory -Force | Out-Null

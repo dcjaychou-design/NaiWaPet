@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -27,6 +28,14 @@ ATLAS_ROWS = 8
 FRAMES_PER_ATLAS = ATLAS_COLUMNS * ATLAS_ROWS
 MASK_MAGIC = b"NWMK"
 MASK_VERSION = 1
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def connected_background(candidate: np.ndarray) -> np.ndarray:
@@ -210,6 +219,11 @@ def extract_audio(source: Path, destination: Path) -> None:
 
 
 def build(source: Path, project_root: Path, target_height: int, fps: int) -> None:
+    try:
+        source_file = source.relative_to(project_root).as_posix()
+    except ValueError as error:
+        raise ValueError("source video must be located inside the project directory") from error
+
     animation_dir = project_root / "src/NaiWaPet/Assets/Animation"
     app_asset_dir = project_root / "src/NaiWaPet/Assets/App"
     audio_dir = project_root / "src/NaiWaPet/Assets/Audio"
@@ -331,8 +345,8 @@ def build(source: Path, project_root: Path, target_height: int, fps: int) -> Non
         "hitMaskFile": "hitmask.bin",
         "atlases": atlas_entries,
         "source": {
-            "file": "assets/source/Naiwa.mp4",
-            "sha256": "1c05a2a8af2052f2f0a5909f917cf3f1146215a3e5b51542a2f349dc05987e08",
+            "file": source_file,
+            "sha256": sha256(source),
         },
     }
     (animation_dir / "animation.json").write_text(
@@ -371,6 +385,11 @@ def main() -> int:
     parser.add_argument("--height", type=int, default=400)
     parser.add_argument("--fps", type=int, default=30)
     arguments = parser.parse_args()
+
+    if arguments.height <= 0:
+        parser.error("--height must be greater than zero")
+    if not 1 <= arguments.fps <= 120:
+        parser.error("--fps must be between 1 and 120")
 
     source = arguments.source.resolve()
     if not source.is_file():

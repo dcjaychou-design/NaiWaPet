@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-2025
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -39,4 +45,4 @@ jobs:
 
       - name: Smoke test published executable
         shell: pwsh
-        run: ./verify-windows.ps1
+        run: ./verify-windows.ps1 -ExpectedFileVersion "1.0.0.0"

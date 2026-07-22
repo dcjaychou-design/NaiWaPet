@@ -129,8 +129,9 @@ internal sealed partial class PetWindow : Window
             return NativeMethods.HtTransparent;
         }
 
-        var screenX = unchecked((short)((long)lParam & 0xffff));
-        var screenY = unchecked((short)(((long)lParam >> 16) & 0xffff));
+        var hasCursorPosition = NativeMethods.GetCursorPos(out var cursor);
+        var screenX = hasCursorPosition ? cursor.X : unchecked((short)((long)lParam & 0xffff));
+        var screenY = hasCursorPosition ? cursor.Y : unchecked((short)(((long)lParam >> 16) & 0xffff));
         var pixelWidth = rect.Right - rect.Left;
         var pixelHeight = rect.Bottom - rect.Top;
         var clientX = screenX - rect.Left;
