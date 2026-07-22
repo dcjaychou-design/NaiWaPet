@@ -1,43 +1,39 @@
 # Changelog
 
-All notable changes are documented here. The format follows Keep a Changelog, and releases use semantic versioning.
+本文件记录 NaiWaPet 的重要变更，格式参考 Keep a Changelog，版本号遵循语义化版本规范。
 
 ## [Unreleased]
 
-### Changed
+暂无未发布变更。
 
-- Lower peak animation-atlas memory during playback transitions and asset smoke tests.
-- Strengthen offline asset verification with explicit checks for declared files, safe paths and source hashes.
-- Generate source path and SHA-256 metadata directly from the selected input video.
-- Expand core tests for malformed manifests, malformed hit masks and constrained display work areas.
+## [1.0.0] - 2026-07-22
 
-### Fixed
+### 新增
 
-- Keep package, assembly, file and informational versions synchronized during release packaging.
-- Retry activation briefly when a second instance starts while the first instance is still initializing.
-- Prevent integer overflow when validating animation atlases and hit-mask payloads.
-- Keep throw and roaming physics inside the work area even when the pet is larger than the available display area.
-- Avoid shared temporary settings files and clean up incomplete writes safely.
-- Treat a stale Windows startup entry as disabled when it points to a different executable path.
+- 462 帧、30 FPS 的完整“奶蛙捧腹大笑”透明动画。
+- 默认开启且可随时关闭的原视频笑声音轨。
+- 透明且始终置顶的 WPF 桌宠窗口，以及逐帧像素级点击区域。
+- 拖动、抛掷、重力、碰撞反弹、滚轮缩放和可选的偶尔蹦动。
+- 托盘菜单、设置窗口、鼠标穿透和当前用户开机启动。
+- 可直接运行的 Windows 11 x64 单文件程序和便携 ZIP。
+- 可复现的素材处理流程、完整性校验、核心测试和 GitHub Actions 自动化。
 
-## [1.0.0] - 2026-07-20
+### 改进
 
-### Added
+- 降低动画切换和素材冒烟测试期间的图集内存峰值。
+- 加强离线素材校验，明确检查清单声明文件、安全相对路径和源视频哈希。
+- 直接根据所选输入视频生成源文件路径和 SHA-256 元数据。
+- 增加异常动画清单、异常点击掩码和受限显示区域的核心测试。
+- 首次运行默认显示为 80%，并可通过滚轮或设置滑块在 50%～180% 之间调整。
+- 在保留兼容设置的同时，把已有本地配置规范化为 1.0.0 的正式默认值。
 
-- Complete 462-frame transparent “奶蛙捧腹大笑” animation at 30 FPS.
-- Original laugh audio, enabled by default and user-switchable.
-- Transparent, topmost WPF desktop-pet window with per-frame pixel hit testing.
-- Dragging, throwing, gravity, bouncing, mouse-wheel scaling and optional roaming.
-- System tray controls, settings window, click-through mode and Windows startup option.
-- Directly runnable single-file Windows 11 x64 executable and portable ZIP package.
-- Reproducible asset pipeline, integrity verifier, core tests and GitHub Actions workflows.
+### 修复
 
-### Changed
-
-- Use an 80% first-run scale, adjustable from 50% to 180% by mouse wheel or settings slider.
-- Normalize existing local settings to the final first-release defaults while preserving compatible values.
-
-### Fixed
-
-- Decode WPF animation atlases only on the UI dispatcher, preventing cross-thread image-ownership crashes at startup.
-- Write full exception details to `%LOCALAPPDATA%\NaiWaPet\Logs` when an unexpected error occurs.
+- 发布打包时同步设置包版本、程序集版本、文件版本和信息版本。
+- 第二个实例启动时，如果首个实例仍在初始化，会短暂重试激活操作。
+- 防止动画图集和点击掩码数据校验发生整数溢出。
+- 即使奶蛙大于可用显示区域，抛掷和漫游也不会越出工作区。
+- 避免多个设置保存操作共用临时文件，并安全清理未完成的写入。
+- Windows 开机启动项指向其他程序路径时，将其正确识别为未启用。
+- 仅在 UI 调度线程解码 WPF 动画图集，避免启动时出现跨线程图像所有权崩溃。
+- 未预期错误发生时，将完整异常信息写入 `%LOCALAPPDATA%\NaiWaPet\Logs`。

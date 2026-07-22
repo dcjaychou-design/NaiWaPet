@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要重新构建并发布的已有版本标签
+        required: true
+        default: v1.0.0
 
 permissions:
   contents: write
@@ -13,6 +19,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -26,7 +34,16 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $Version = "${{ github.ref_name }}".TrimStart("v")
+          $Tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ inputs.tag }}"
+          } else {
+            "${{ github.ref_name }}"
+          }
+          if ($Tag -notmatch '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+            throw "发布标签必须采用 v1.0.0 形式的语义化版本。"
+          }
+          $Version = $Tag.Substring(1)
+          "tag=$Tag" >> $env:GITHUB_OUTPUT
           "version=$Version" >> $env:GITHUB_OUTPUT
 
       - name: Build portable package
@@ -38,15 +55,124 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $Tag = "${{ steps.version.outputs.tag }}"
           $Version = "${{ steps.version.outputs.version }}"
+          $NotesFile = "docs/releases/$Version.md"
+          if (-not (Test-Path $NotesFile)) {
+            throw "缺少发布说明：$NotesFile"
+          }
           $Assets = @(
             "artifacts/NaiWaPet-$Version-win-x64.exe",
             "artifacts/NaiWaPet-$Version-win-x64.exe.sha256",
             "artifacts/NaiWaPet-$Version-win-x64-portable.zip",
             "artifacts/NaiWaPet-$Version-win-x64-portable.zip.sha256"
           )
-          gh release create "${{ github.ref_name }}" @Assets `
-            --repo "${{ github.repository }}" `
-            --title "NaiWaPet $Version" `
-            --generate-notes `
-            --verify-tag
+          $BackupDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-backup-$Version"
+          $BackupNotes = Join-Path $BackupDirectory "release-notes.md"
+          $BackupTitle = Join-Path $BackupDirectory "release-title.txt"
+          gh release view $Tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            New-Item -ItemType Directory -Path $BackupDirectory -Force | Out-Null
+            $ExistingRelease = gh release view $Tag `
+              --repo "${{ github.repository }}" `
+              --json name,body | ConvertFrom-Json
+            $OriginalTitle = [string]$ExistingRelease.name
+            [System.IO.File]::WriteAllText($BackupNotes, [string]$ExistingRelease.body)
+            [System.IO.File]::WriteAllText($BackupTitle, $OriginalTitle)
+            gh release download $Tag `
+              --repo "${{ github.repository }}" `
+              --dir $BackupDirectory `
+              --pattern "NaiWaPet-$Version-win-x64*" `
+              --clobber
+            if ($LASTEXITCODE -ne 0) { throw "备份现有 GitHub Release 文件失败，发布已停止。" }
+
+            $BackupAssets = @(Get-ChildItem $BackupDirectory -File | Where-Object Name -Like "NaiWaPet-$Version-win-x64*" | ForEach-Object FullName)
+            if ($BackupAssets.Count -ne 4) {
+              throw "现有 GitHub Release 应包含 4 个发布文件，实际为 $($BackupAssets.Count) 个，发布已停止。"
+            }
+            gh release upload $Tag @Assets `
+              --repo "${{ github.repository }}" `
+              --clobber
+            if ($LASTEXITCODE -ne 0) {
+              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
+              throw "更新 GitHub Release 文件失败，已尝试恢复原文件。"
+            }
+
+            gh release edit $Tag `
+              --repo "${{ github.repository }}" `
+              --title "NaiWaPet $Version" `
+              --notes-file $NotesFile `
+              --latest
+            if ($LASTEXITCODE -ne 0) {
+              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
+              gh release edit $Tag `
+                --repo "${{ github.repository }}" `
+                --title $OriginalTitle `
+                --notes-file $BackupNotes `
+                --latest
+              throw "更新 GitHub Release 说明失败，已尝试恢复原文件。"
+            }
+          } else {
+            gh release create $Tag @Assets `
+              --repo "${{ github.repository }}" `
+              --title "NaiWaPet $Version" `
+              --notes-file $NotesFile `
+              --latest `
+              --verify-tag
+            if ($LASTEXITCODE -ne 0) { throw "创建 GitHub Release 失败。" }
+          }
+
+      - name: Verify published release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tag = "${{ steps.version.outputs.tag }}"
+          $Version = "${{ steps.version.outputs.version }}"
+          $RemoteDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-$Version"
+          $BackupDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-backup-$Version"
+          New-Item -ItemType Directory -Path $RemoteDirectory -Force | Out-Null
+          try {
+            gh release download $Tag `
+              --repo "${{ github.repository }}" `
+              --dir $RemoteDirectory `
+              --pattern "NaiWaPet-$Version-win-x64*" `
+              --clobber
+            if ($LASTEXITCODE -ne 0) { throw "下载已发布文件进行复核时失败。" }
+
+            $AssetNames = @(
+              "NaiWaPet-$Version-win-x64.exe",
+              "NaiWaPet-$Version-win-x64.exe.sha256",
+              "NaiWaPet-$Version-win-x64-portable.zip",
+              "NaiWaPet-$Version-win-x64-portable.zip.sha256"
+            )
+            foreach ($AssetName in $AssetNames) {
+              $LocalPath = Join-Path "artifacts" $AssetName
+              $RemotePath = Join-Path $RemoteDirectory $AssetName
+              if (-not (Test-Path $RemotePath)) {
+                throw "GitHub Release 缺少文件：$AssetName"
+              }
+              $LocalHash = (Get-FileHash $LocalPath -Algorithm SHA256).Hash
+              $RemoteHash = (Get-FileHash $RemotePath -Algorithm SHA256).Hash
+              if ($LocalHash -ne $RemoteHash) {
+                throw "GitHub Release 文件与本次构建不一致：$AssetName"
+              }
+            }
+          } catch {
+            if (Test-Path $BackupDirectory) {
+              $BackupAssets = @(Get-ChildItem $BackupDirectory -File | Where-Object Name -Like "NaiWaPet-$Version-win-x64*" | ForEach-Object FullName)
+              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
+              $BackupNotes = Join-Path $BackupDirectory "release-notes.md"
+              $BackupTitle = [System.IO.File]::ReadAllText((Join-Path $BackupDirectory "release-title.txt"))
+              gh release edit $Tag `
+                --repo "${{ github.repository }}" `
+                --title $BackupTitle `
+                --notes-file $BackupNotes `
+                --latest
+            }
+            throw
+          }
+
+          if (Test-Path $BackupDirectory) {
+            Remove-Item $BackupDirectory -Recurse -Force
+          }
