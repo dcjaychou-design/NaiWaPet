@@ -23,6 +23,7 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
     <Product>奶蛙桌宠</Product>
     <Description>Windows 11 x64 透明奶蛙桌宠</Description>
     <Authors>dcjoker</Authors>

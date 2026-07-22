@@ -30,11 +30,11 @@ public static class MotionPhysics
 
     public static MotionResult Step(PointD position, PointD velocity, double elapsedSeconds, RectD workArea, SizeD windowSize)
     {
-        var dt = Math.Clamp(elapsedSeconds, 0.0, 0.05);
+        var dt = double.IsFinite(elapsedSeconds) ? Math.Clamp(elapsedSeconds, 0.0, 0.05) : 0.0;
         var nextVelocity = new PointD(velocity.X, velocity.Y + Gravity * dt);
         var nextPosition = position + nextVelocity * dt;
-        var floor = workArea.Bottom - windowSize.Height;
-        var right = workArea.Right - windowSize.Width;
+        var floor = Math.Max(workArea.Top, workArea.Bottom - Math.Max(0, windowSize.Height));
+        var right = Math.Max(workArea.Left, workArea.Right - Math.Max(0, windowSize.Width));
 
         if (nextPosition.X < workArea.Left)
         {

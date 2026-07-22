@@ -38,15 +38,41 @@ public sealed class AnimationManifest
             throw new InvalidDataException("Animation dimensions, frame rate, or frame count are invalid.");
         }
 
-        if (Columns <= 0 || Rows <= 0 || IdleFrame < 0 || IdleFrame >= TotalFrames || string.IsNullOrWhiteSpace(HitMaskFile))
+        if (Columns <= 0 ||
+            Rows <= 0 ||
+            IdleFrame < 0 ||
+            IdleFrame >= TotalFrames ||
+            string.IsNullOrWhiteSpace(HitMaskFile) ||
+            Atlases is null)
         {
             throw new InvalidDataException("Animation layout metadata is invalid.");
         }
 
-        var expectedFrame = 0;
+        var atlasCapacity = (long)Columns * Rows;
+        var atlasPixelWidth = (long)FrameWidth * Columns;
+        var atlasPixelHeight = (long)FrameHeight * Rows;
+        if (atlasCapacity > int.MaxValue || atlasPixelWidth > int.MaxValue || atlasPixelHeight > int.MaxValue)
+        {
+            throw new InvalidDataException("Animation atlas dimensions are too large.");
+        }
+
+        if (Source is null ||
+            string.IsNullOrWhiteSpace(Source.File) ||
+            string.IsNullOrWhiteSpace(Source.Sha256) ||
+            Source.Sha256.Length != 64 ||
+            !Source.Sha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidDataException("Animation source metadata is invalid.");
+        }
+
+        long expectedFrame = 0;
         foreach (var atlas in Atlases)
         {
-            if (atlas.FirstFrame != expectedFrame || atlas.FrameCount <= 0 || atlas.FrameCount > Columns * Rows || string.IsNullOrWhiteSpace(atlas.File))
+            if (atlas is null ||
+                atlas.FirstFrame != expectedFrame ||
+                atlas.FrameCount <= 0 ||
+                atlas.FrameCount > atlasCapacity ||
+                string.IsNullOrWhiteSpace(atlas.File))
             {
                 throw new InvalidDataException("Animation atlas sequence is not contiguous.");
             }
@@ -70,7 +96,7 @@ public sealed class AnimationManifest
         for (var atlasIndex = 0; atlasIndex < Atlases.Count; atlasIndex++)
         {
             var atlas = Atlases[atlasIndex];
-            if (frameIndex < atlas.FirstFrame + atlas.FrameCount)
+            if (frameIndex < (long)atlas.FirstFrame + atlas.FrameCount)
             {
                 var localFrame = frameIndex - atlas.FirstFrame;
                 return new FrameLocation(

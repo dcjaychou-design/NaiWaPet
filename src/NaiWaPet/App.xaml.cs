@@ -41,16 +41,7 @@ internal sealed partial class App : System.Windows.Application, IDisposable
         instanceMutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
         if (!createdNew)
         {
-            try
-            {
-                using var existingEvent = EventWaitHandle.OpenExisting(ActivationEventName);
-                existingEvent.Set();
-            }
-            catch (WaitHandleCannotBeOpenedException)
-            {
-                // The first process may still be starting; exiting is still safe.
-            }
-
+            SignalExistingInstance();
             Shutdown();
             return;
         }
@@ -62,6 +53,30 @@ internal sealed partial class App : System.Windows.Application, IDisposable
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         controller = new AppController();
         controller.Start();
+    }
+
+    private static void SignalExistingInstance()
+    {
+        const int attempts = 20;
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            try
+            {
+                using var existingEvent = EventWaitHandle.OpenExisting(ActivationEventName);
+                existingEvent.Set();
+                return;
+            }
+            catch (WaitHandleCannotBeOpenedException) when (attempt + 1 < attempts)
+            {
+                // The first process owns the mutex but may not have created the
+                // activation event yet. Give it a short, bounded startup window.
+                Thread.Sleep(50);
+            }
+            catch (WaitHandleCannotBeOpenedException)
+            {
+                return;
+            }
+        }
     }
 
     private void StartActivationListener(CancellationToken cancellationToken)

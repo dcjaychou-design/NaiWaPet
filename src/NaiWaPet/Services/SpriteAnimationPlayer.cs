@@ -16,6 +16,7 @@ internal sealed class SpriteAnimationPlayer : IDisposable
     private readonly MemoryStream audioStream;
     private readonly SoundPlayer soundPlayer;
     private bool playing;
+    private bool disposed;
     private int currentFrame = -1;
     private BitmapSource? currentImage;
 
@@ -62,6 +63,7 @@ internal sealed class SpriteAnimationPlayer : IDisposable
     {
         for (var atlasIndex = 0; atlasIndex < manifest.Atlases.Count; atlasIndex++)
         {
+            atlasCache.Trim(atlasIndex);
             var atlas = atlasCache.Get(atlasIndex);
             if (atlas.PixelWidth != manifest.FrameWidth * manifest.Columns || atlas.PixelHeight != manifest.FrameHeight * manifest.Rows)
             {
@@ -114,6 +116,13 @@ internal sealed class SpriteAnimationPlayer : IDisposable
         }
 
         var location = manifest.LocateFrame(frame);
+        if (location.LocalFrame == 0)
+        {
+            // Release atlases that are no longer adjacent before decoding the
+            // next one, reducing peak memory during atlas transitions.
+            atlasCache.Trim(location.AtlasIndex);
+        }
+
         var atlas = atlasCache.Get(location.AtlasIndex);
         var crop = new CroppedBitmap(
             atlas,
@@ -132,14 +141,16 @@ internal sealed class SpriteAnimationPlayer : IDisposable
             atlasCache.Preload(location.AtlasIndex + 1);
         }
 
-        if (location.LocalFrame == 0)
-        {
-            atlasCache.Trim(location.AtlasIndex);
-        }
     }
 
     public void Dispose()
     {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
         timer.Stop();
         timer.Tick -= OnTick;
         soundPlayer.Stop();

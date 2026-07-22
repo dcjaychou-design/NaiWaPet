@@ -4,6 +4,22 @@ All notable changes are documented here. The format follows Keep a Changelog, an
 
 ## [Unreleased]
 
+### Changed
+
+- Lower peak animation-atlas memory during playback transitions and asset smoke tests.
+- Strengthen offline asset verification with explicit checks for declared files, safe paths and source hashes.
+- Generate source path and SHA-256 metadata directly from the selected input video.
+- Expand core tests for malformed manifests, malformed hit masks and constrained display work areas.
+
+### Fixed
+
+- Keep package, assembly, file and informational versions synchronized during release packaging.
+- Retry activation briefly when a second instance starts while the first instance is still initializing.
+- Prevent integer overflow when validating animation atlases and hit-mask payloads.
+- Keep throw and roaming physics inside the work area even when the pet is larger than the available display area.
+- Avoid shared temporary settings files and clean up incomplete writes safely.
+- Treat a stale Windows startup entry as disabled when it points to a different executable path.
+
 ## [1.0.0] - 2026-07-20
 
 ### Added

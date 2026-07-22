@@ -40,12 +40,19 @@ public sealed class HitMask
         var height = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(12, 4));
         var frameCount = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16, 4));
         var bytesPerFrame = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
-        if (version != 1 || width <= 0 || height <= 0 || frameCount <= 0 || bytesPerFrame != (width * height + 7) / 8)
+        var expectedBytesPerFrame = ((long)width * height + 7) / 8;
+        if (version != 1 ||
+            width <= 0 ||
+            height <= 0 ||
+            frameCount <= 0 ||
+            expectedBytesPerFrame > int.MaxValue ||
+            bytesPerFrame != expectedBytesPerFrame)
         {
             throw new InvalidDataException("Hit-mask metadata is invalid.");
         }
 
-        if (bytes.Length != HeaderSize + frameCount * bytesPerFrame)
+        var expectedLength = HeaderSize + (long)frameCount * bytesPerFrame;
+        if (expectedLength > int.MaxValue || bytes.Length != expectedLength)
         {
             throw new InvalidDataException("Hit-mask payload length is invalid.");
         }
@@ -60,8 +67,8 @@ public sealed class HitMask
             return false;
         }
 
-        var pixel = y * Width + x;
-        var offset = frame * BytesPerFrame + pixel / 8;
-        return (data[offset] & (1 << (pixel & 7))) != 0;
+        var pixel = (long)y * Width + x;
+        var offset = (long)frame * BytesPerFrame + pixel / 8;
+        return (data[(int)offset] & (1 << (int)(pixel & 7))) != 0;
     }
 }
