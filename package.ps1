@@ -1,26 +1,38 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version,
     [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
-$VersionPattern = '^(?<Major>0|[1-9]\d*)\.(?<Minor>0|[1-9]\d*)\.(?<Patch>0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
-$VersionMatch = [System.Text.RegularExpressions.Regex]::Match($Version, $VersionPattern)
-if (-not $VersionMatch.Success) {
-    throw "版本号必须是有效的语义化版本，例如 1.0.0 或 1.0.0-beta.1。"
-}
-$FileVersionParts = @()
-foreach ($PartName in @("Major", "Minor", "Patch")) {
-    $PartValue = 0
-    if (-not [int]::TryParse($VersionMatch.Groups[$PartName].Value, [ref]$PartValue) -or $PartValue -gt 65534) {
-        throw "版本号的每个数字部分必须位于 0 到 65534 之间。"
-    }
-    $FileVersionParts += $PartValue
-}
-$FileVersion = "$($FileVersionParts -join '.').0"
-
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+[xml]$BuildProperties = Get-Content (Join-Path $ProjectRoot "Directory.Build.props") -Raw
+$SourceVersion = [string]$BuildProperties.Project.PropertyGroup.Version
+$FileVersion = [string]$BuildProperties.Project.PropertyGroup.FileVersion
+$RuntimeVersion = [string]$BuildProperties.Project.PropertyGroup.PinnedRuntimeVersion
+
+$VersionPattern = '^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
+if ($SourceVersion -notmatch $VersionPattern) {
+    throw "Directory.Build.props 中的版本号无效：$SourceVersion"
+}
+if ($PSBoundParameters.ContainsKey("Version") -and $Version -ne $SourceVersion) {
+    throw "传入版本 $Version 与源码版本 $SourceVersion 不一致。请先更新 Directory.Build.props。"
+}
+$Version = $SourceVersion
+if ($FileVersion -ne "$($Version.Split('-')[0].Split('+')[0]).0") {
+    throw "文件版本 $FileVersion 与应用版本 $Version 不一致。"
+}
+if ($RuntimeVersion -ne "10.0.10") {
+    throw "当前发布必须固定使用 .NET 运行时 10.0.10，实际为 $RuntimeVersion。"
+}
+$InstalledRuntimes = @(& dotnet --list-runtimes)
+foreach ($Framework in @("Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App")) {
+    $Pattern = "^$([regex]::Escape($Framework))\s+$([regex]::Escape($RuntimeVersion))\s+\["
+    if (-not ($InstalledRuntimes | Where-Object { $_ -match $Pattern })) {
+        throw "未安装发布所需的固定运行时：$Framework $RuntimeVersion"
+    }
+}
+
 $Artifacts = Join-Path $ProjectRoot "artifacts"
 $PublishDirectory = Join-Path $Artifacts "publish"
 $DirectExecutable = Join-Path $Artifacts "NaiWaPet-$Version-win-x64.exe"
@@ -31,23 +43,17 @@ if (-not $SkipTests) {
     & (Join-Path $ProjectRoot "build.ps1") -Configuration Release
 }
 
-if (Test-Path $PublishDirectory) {
-    Remove-Item $PublishDirectory -Recurse -Force
-}
-if (Test-Path $PortableDirectory) {
-    Remove-Item $PortableDirectory -Recurse -Force
-}
-if (Test-Path $PortableZip) {
-    Remove-Item $PortableZip -Force
-}
-if (Test-Path "$PortableZip.sha256") {
-    Remove-Item "$PortableZip.sha256" -Force
-}
-if (Test-Path $DirectExecutable) {
-    Remove-Item $DirectExecutable -Force
-}
-if (Test-Path "$DirectExecutable.sha256") {
-    Remove-Item "$DirectExecutable.sha256" -Force
+foreach ($Path in @(
+    $PublishDirectory,
+    $PortableDirectory,
+    $PortableZip,
+    "$PortableZip.sha256",
+    $DirectExecutable,
+    "$DirectExecutable.sha256"
+)) {
+    if (Test-Path $Path) {
+        Remove-Item $Path -Recurse -Force
+    }
 }
 
 dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
@@ -55,36 +61,49 @@ dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
     --runtime win-x64 `
     --self-contained true `
     --output $PublishDirectory `
-    -p:Version=$Version `
-    -p:AssemblyVersion=$FileVersion `
-    -p:FileVersion=$FileVersion `
-    -p:InformationalVersion=$Version `
     -p:DebugSymbols=false `
     -p:DebugType=None
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish 失败，退出码：$LASTEXITCODE"
+}
 
 & (Join-Path $ProjectRoot "verify-windows.ps1") `
     -Executable "artifacts/publish/NaiWaPet.exe" `
-    -ExpectedFileVersion $FileVersion
+    -ExpectedFileVersion $FileVersion `
+    -ExpectedProductVersion $Version
 
 Copy-Item (Join-Path $PublishDirectory "NaiWaPet.exe") $DirectExecutable
 New-Item -ItemType Directory -Path $PortableDirectory -Force | Out-Null
-Copy-Item (Join-Path $PublishDirectory "NaiWaPet.exe") $PortableDirectory
-Copy-Item (Join-Path $ProjectRoot "README.md") $PortableDirectory
-Copy-Item (Join-Path $ProjectRoot "LICENSE") $PortableDirectory
-Copy-Item (Join-Path $ProjectRoot "NOTICE.md") $PortableDirectory
-Copy-Item (Join-Path $ProjectRoot "ASSETS.md") $PortableDirectory
-Copy-Item (Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md") $PortableDirectory
+
+$PortableFiles = @(
+    @{ Source = (Join-Path $PublishDirectory "NaiWaPet.exe"); Name = "NaiWaPet.exe" }
+    @{ Source = (Join-Path $ProjectRoot "README.md"); Name = "README.md" }
+    @{ Source = (Join-Path $ProjectRoot "LICENSE"); Name = "LICENSE" }
+    @{ Source = (Join-Path $ProjectRoot "NOTICE.md"); Name = "NOTICE.md" }
+    @{ Source = (Join-Path $ProjectRoot "ASSETS.md"); Name = "ASSETS.md" }
+    @{ Source = (Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md"); Name = "THIRD_PARTY_NOTICES.md" }
+    @{ Source = (Join-Path $ProjectRoot "licenses/dotnet/10.0.10/LICENSE.txt"); Name = "DOTNET-LICENSE.txt" }
+    @{ Source = (Join-Path $ProjectRoot "licenses/dotnet/10.0.10/THIRD-PARTY-NOTICES.txt"); Name = "DOTNET-THIRD-PARTY-NOTICES.txt" }
+    @{ Source = (Join-Path $ProjectRoot "licenses/wpf/10.0.10/LICENSE.txt"); Name = "WPF-LICENSE.txt" }
+    @{ Source = (Join-Path $ProjectRoot "licenses/wpf/10.0.10/THIRD-PARTY-NOTICES.txt"); Name = "WPF-THIRD-PARTY-NOTICES.txt" }
+)
+foreach ($File in $PortableFiles) {
+    if (-not (Test-Path $File.Source -PathType Leaf)) {
+        throw "便携包所需文件不存在：$($File.Source)"
+    }
+    Copy-Item $File.Source (Join-Path $PortableDirectory $File.Name)
+}
+
 Compress-Archive -Path (Join-Path $PortableDirectory "*") -DestinationPath $PortableZip -CompressionLevel Optimal
 
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+foreach ($Path in @($DirectExecutable, $PortableZip)) {
+    $Hash = (Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $Checksum = "$Hash  $(Split-Path $Path -Leaf)`n"
+    [System.IO.File]::WriteAllText("$Path.sha256", $Checksum, $Utf8NoBom)
+}
 
-$Hash = Get-FileHash $PortableZip -Algorithm SHA256
-$Checksum = "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $PortableZip -Leaf)`n"
-[System.IO.File]::WriteAllText("$PortableZip.sha256", $Checksum, $Utf8NoBom)
-
-$Hash = Get-FileHash $DirectExecutable -Algorithm SHA256
-$Checksum = "$($Hash.Hash.ToLowerInvariant())  $(Split-Path $DirectExecutable -Leaf)`n"
-[System.IO.File]::WriteAllText("$DirectExecutable.sha256", $Checksum, $Utf8NoBom)
+& (Join-Path $ProjectRoot "verify-package.ps1") -Version $Version
 
 Write-Host "发布完成：$DirectExecutable"
 Write-Host "便携压缩包：$PortableZip"

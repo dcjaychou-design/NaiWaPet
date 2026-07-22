@@ -8,6 +8,9 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+LICENSE text eol=lf
+licenses/**/*.txt text eol=lf
+licenses/**/*.txt whitespace=-trailing-space,-blank-at-eof
 *.png binary
 *.ico binary
 *.webp binary

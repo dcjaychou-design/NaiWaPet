@@ -16,17 +16,24 @@ permissions:
 jobs:
   build:
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          dotnet-version: 10.0.x
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          python-version: "3.13"
+          dotnet-version: 10.0.302
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: 3.13.14
+
+      - name: Verify release metadata and documentation links
+        run: |
+          python tools/verify_release_metadata.py
+          python tools/verify_markdown_links.py
 
       - name: Verify committed animation assets
         run: python tools/verify_assets.py
@@ -34,15 +41,12 @@ jobs:
       - name: Restore
         run: dotnet restore NaiWaPet.slnx
 
-      - name: Build
+      - name: Build with analyzers
         run: dotnet build NaiWaPet.slnx --configuration Release --no-restore
 
       - name: Run core tests
         run: dotnet run --project tests/NaiWaPet.Core.Tests/NaiWaPet.Core.Tests.csproj --configuration Release --no-build
 
-      - name: Publish Windows x64 single file
-        run: dotnet publish src/NaiWaPet/NaiWaPet.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/publish -p:DebugSymbols=false -p:DebugType=None
-
-      - name: Smoke test published executable
+      - name: Build and verify complete Windows package
         shell: pwsh
-        run: ./verify-windows.ps1 -ExpectedFileVersion "1.0.0.0"
+        run: ./package.ps1 -SkipTests

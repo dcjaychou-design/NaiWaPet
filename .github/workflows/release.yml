@@ -6,173 +6,236 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 要重新构建并发布的已有版本标签
+        description: 要构建并发布的已有版本标签（已发布版本不可覆盖）
         required: true
-        default: v1.0.0
+        default: v1.0.1
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
-  release:
-    runs-on: windows-2025
-    timeout-minutes: 30
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-
-      - name: Resolve version
-        id: version
+      - name: Validate tag before checkout
+        id: release
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          $Tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            "${{ inputs.tag }}"
-          } else {
-            "${{ github.ref_name }}"
-          }
+          $Tag = if ($env:EVENT_NAME -eq "workflow_dispatch") { $env:INPUT_TAG } else { $env:REF_NAME }
           if ($Tag -notmatch '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
-            throw "发布标签必须采用 v1.0.0 形式的语义化版本。"
+            throw "发布标签必须采用 v1.0.1 形式的语义化版本。"
           }
-          $Version = $Tag.Substring(1)
+
+          $Repository = gh api "repos/$env:REPOSITORY" | ConvertFrom-Json
+          if ($Repository.default_branch -ne "main") {
+            throw "默认分支必须是 main，实际为 $($Repository.default_branch)。"
+          }
+          $TagReference = gh api "repos/$env:REPOSITORY/git/ref/tags/$Tag" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "标签不存在：$Tag" }
+          $Object = $TagReference.object
+          for ($Depth = 0; $Object.type -eq "tag" -and $Depth -lt 5; $Depth++) {
+            $TagObject = gh api "repos/$env:REPOSITORY/git/tags/$($Object.sha)" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "无法解析标签对象：$Tag" }
+            $Object = $TagObject.object
+          }
+          if ($Object.type -ne "commit" -or $Object.sha -notmatch '^[0-9a-f]{40}$') {
+            throw "标签没有指向有效提交：$Tag"
+          }
+          $Main = gh api "repos/$env:REPOSITORY/git/ref/heads/main" | ConvertFrom-Json
+          if ($Object.sha -ne $Main.object.sha) {
+            throw "发布标签必须指向当前 main：标签 $($Object.sha)，main $($Main.object.sha)。"
+          }
+
           "tag=$Tag" >> $env:GITHUB_OUTPUT
-          "version=$Version" >> $env:GITHUB_OUTPUT
+          "version=$($Tag.Substring(1))" >> $env:GITHUB_OUTPUT
+          "commit=$($Object.sha)" >> $env:GITHUB_OUTPUT
 
-      - name: Build portable package
-        shell: pwsh
-        run: ./package.ps1 -Version "${{ steps.version.outputs.version }}"
+  build:
+    needs: preflight
+    runs-on: windows-2025
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: refs/tags/${{ needs.preflight.outputs.tag }}
+          persist-credentials: false
 
-      - name: Publish GitHub release
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 10.0.302
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: 3.13.14
+
+      - name: Verify checked-out source
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          EXPECTED_COMMIT: ${{ needs.preflight.outputs.commit }}
+          EXPECTED_TAG: ${{ needs.preflight.outputs.tag }}
         run: |
-          $Tag = "${{ steps.version.outputs.tag }}"
-          $Version = "${{ steps.version.outputs.version }}"
-          $NotesFile = "docs/releases/$Version.md"
-          if (-not (Test-Path $NotesFile)) {
-            throw "缺少发布说明：$NotesFile"
+          if ((git rev-parse HEAD) -ne $env:EXPECTED_COMMIT) {
+            throw "检出的提交与预检结果不一致。"
           }
-          $Assets = @(
-            "artifacts/NaiWaPet-$Version-win-x64.exe",
-            "artifacts/NaiWaPet-$Version-win-x64.exe.sha256",
-            "artifacts/NaiWaPet-$Version-win-x64-portable.zip",
-            "artifacts/NaiWaPet-$Version-win-x64-portable.zip.sha256"
+          python tools/verify_release_metadata.py --tag $env:EXPECTED_TAG
+          python tools/verify_markdown_links.py
+          python tools/verify_assets.py
+
+      - name: Build and verify release package
+        shell: pwsh
+        run: ./package.ps1
+
+      - name: Prepare immutable release input
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          COMMIT: ${{ needs.preflight.outputs.commit }}
+        run: |
+          Copy-Item "docs/releases/$env:VERSION.md" "artifacts/release-notes.md"
+          $Names = @(
+            "NaiWaPet-$env:VERSION-win-x64.exe",
+            "NaiWaPet-$env:VERSION-win-x64.exe.sha256",
+            "NaiWaPet-$env:VERSION-win-x64-portable.zip",
+            "NaiWaPet-$env:VERSION-win-x64-portable.zip.sha256"
           )
-          $BackupDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-backup-$Version"
-          $BackupNotes = Join-Path $BackupDirectory "release-notes.md"
-          $BackupTitle = Join-Path $BackupDirectory "release-title.txt"
-          gh release view $Tag --repo "${{ github.repository }}" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            New-Item -ItemType Directory -Path $BackupDirectory -Force | Out-Null
-            $ExistingRelease = gh release view $Tag `
-              --repo "${{ github.repository }}" `
-              --json name,body | ConvertFrom-Json
-            $OriginalTitle = [string]$ExistingRelease.name
-            [System.IO.File]::WriteAllText($BackupNotes, [string]$ExistingRelease.body)
-            [System.IO.File]::WriteAllText($BackupTitle, $OriginalTitle)
-            gh release download $Tag `
-              --repo "${{ github.repository }}" `
-              --dir $BackupDirectory `
-              --pattern "NaiWaPet-$Version-win-x64*" `
-              --clobber
-            if ($LASTEXITCODE -ne 0) { throw "备份现有 GitHub Release 文件失败，发布已停止。" }
-
-            $BackupAssets = @(Get-ChildItem $BackupDirectory -File | Where-Object Name -Like "NaiWaPet-$Version-win-x64*" | ForEach-Object FullName)
-            if ($BackupAssets.Count -ne 4) {
-              throw "现有 GitHub Release 应包含 4 个发布文件，实际为 $($BackupAssets.Count) 个，发布已停止。"
+          $Assets = foreach ($Name in $Names) {
+            $Path = Join-Path "artifacts" $Name
+            [ordered]@{
+              name = $Name
+              size = (Get-Item $Path).Length
+              sha256 = (Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant()
             }
-            gh release upload $Tag @Assets `
-              --repo "${{ github.repository }}" `
-              --clobber
-            if ($LASTEXITCODE -ne 0) {
-              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
-              throw "更新 GitHub Release 文件失败，已尝试恢复原文件。"
-            }
-
-            gh release edit $Tag `
-              --repo "${{ github.repository }}" `
-              --title "NaiWaPet $Version" `
-              --notes-file $NotesFile `
-              --latest
-            if ($LASTEXITCODE -ne 0) {
-              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
-              gh release edit $Tag `
-                --repo "${{ github.repository }}" `
-                --title $OriginalTitle `
-                --notes-file $BackupNotes `
-                --latest
-              throw "更新 GitHub Release 说明失败，已尝试恢复原文件。"
-            }
-          } else {
-            gh release create $Tag @Assets `
-              --repo "${{ github.repository }}" `
-              --title "NaiWaPet $Version" `
-              --notes-file $NotesFile `
-              --latest `
-              --verify-tag
-            if ($LASTEXITCODE -ne 0) { throw "创建 GitHub Release 失败。" }
           }
+          [ordered]@{ tag = $env:TAG; version = $env:VERSION; commit = $env:COMMIT; assets = $Assets } |
+            ConvertTo-Json -Depth 4 |
+            Set-Content "artifacts/release-manifest.json" -Encoding utf8NoBOM
 
-      - name: Verify published release assets
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ needs.preflight.outputs.version }}-${{ needs.preflight.outputs.commit }}
+          path: |
+            artifacts/NaiWaPet-${{ needs.preflight.outputs.version }}-win-x64.exe
+            artifacts/NaiWaPet-${{ needs.preflight.outputs.version }}-win-x64.exe.sha256
+            artifacts/NaiWaPet-${{ needs.preflight.outputs.version }}-win-x64-portable.zip
+            artifacts/NaiWaPet-${{ needs.preflight.outputs.version }}-win-x64-portable.zip.sha256
+            artifacts/release-notes.md
+            artifacts/release-manifest.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-${{ needs.preflight.outputs.version }}-${{ needs.preflight.outputs.commit }}
+          path: release-input
+
+      - name: Create, verify, and publish immutable release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          COMMIT: ${{ needs.preflight.outputs.commit }}
         run: |
-          $Tag = "${{ steps.version.outputs.tag }}"
-          $Version = "${{ steps.version.outputs.version }}"
-          $RemoteDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-$Version"
-          $BackupDirectory = Join-Path $env:RUNNER_TEMP "naiwapet-release-backup-$Version"
-          New-Item -ItemType Directory -Path $RemoteDirectory -Force | Out-Null
-          try {
-            gh release download $Tag `
-              --repo "${{ github.repository }}" `
-              --dir $RemoteDirectory `
-              --pattern "NaiWaPet-$Version-win-x64*" `
-              --clobber
-            if ($LASTEXITCODE -ne 0) { throw "下载已发布文件进行复核时失败。" }
+          $Manifest = Get-Content "release-input/release-manifest.json" -Raw | ConvertFrom-Json
+          if ($Manifest.tag -ne $env:TAG -or $Manifest.version -ne $env:VERSION -or $Manifest.commit -ne $env:COMMIT) {
+            throw "构建清单与已验证的标签、版本或提交不一致。"
+          }
+          foreach ($Asset in $Manifest.assets) {
+            if ($Asset.name -notmatch "^NaiWaPet-$([regex]::Escape($env:VERSION))-win-x64(?:\.exe|\.exe\.sha256|-portable\.zip|-portable\.zip\.sha256)$") {
+              throw "构建清单包含意外文件：$($Asset.name)"
+            }
+            $Path = Join-Path "release-input" $Asset.name
+            if (-not (Test-Path $Path -PathType Leaf)) { throw "缺少构建文件：$($Asset.name)" }
+            if ((Get-Item $Path).Length -ne $Asset.size) { throw "构建文件大小不一致：$($Asset.name)" }
+            if ((Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Asset.sha256) {
+              throw "构建文件哈希不一致：$($Asset.name)"
+            }
+          }
+          if (@($Manifest.assets).Count -ne 4) { throw "发布必须恰好包含 4 个下载文件。" }
 
-            $AssetNames = @(
-              "NaiWaPet-$Version-win-x64.exe",
-              "NaiWaPet-$Version-win-x64.exe.sha256",
-              "NaiWaPet-$Version-win-x64-portable.zip",
-              "NaiWaPet-$Version-win-x64-portable.zip.sha256"
-            )
-            foreach ($AssetName in $AssetNames) {
-              $LocalPath = Join-Path "artifacts" $AssetName
-              $RemotePath = Join-Path $RemoteDirectory $AssetName
-              if (-not (Test-Path $RemotePath)) {
-                throw "GitHub Release 缺少文件：$AssetName"
-              }
-              $LocalHash = (Get-FileHash $LocalPath -Algorithm SHA256).Hash
-              $RemoteHash = (Get-FileHash $RemotePath -Algorithm SHA256).Hash
-              if ($LocalHash -ne $RemoteHash) {
-                throw "GitHub Release 文件与本次构建不一致：$AssetName"
+          $TagReference = gh api "repos/$env:REPOSITORY/git/ref/tags/$env:TAG" | ConvertFrom-Json
+          $Object = $TagReference.object
+          for ($Depth = 0; $Object.type -eq "tag" -and $Depth -lt 5; $Depth++) {
+            $Object = (gh api "repos/$env:REPOSITORY/git/tags/$($Object.sha)" | ConvertFrom-Json).object
+          }
+          $MainSha = gh api "repos/$env:REPOSITORY/git/ref/heads/main" --jq .object.sha
+          if ($Object.type -ne "commit" -or $Object.sha -ne $env:COMMIT -or $MainSha -ne $env:COMMIT) {
+            throw "发布前远端标签、构建提交和 main 不再一致。"
+          }
+
+          $Existing = @(gh api "repos/$env:REPOSITORY/releases?per_page=100" | ConvertFrom-Json | Where-Object tag_name -eq $env:TAG)
+          if ($Existing.Count -ne 0) {
+            throw "标签 $env:TAG 已存在 Release；已发布版本和已有草稿均禁止覆盖。"
+          }
+
+          $AssetPaths = @($Manifest.assets | ForEach-Object { Join-Path "release-input" $_.name })
+          $DraftCreated = $false
+          $Published = $false
+          try {
+            gh release create $env:TAG --repo $env:REPOSITORY --verify-tag --target $env:COMMIT `
+              --title "NaiWaPet $env:VERSION" --notes-file "release-input/release-notes.md" --draft
+            if ($LASTEXITCODE -ne 0) { throw "创建 Release 草稿失败。" }
+            $DraftCreated = $true
+            gh release upload $env:TAG @AssetPaths --repo $env:REPOSITORY
+            if ($LASTEXITCODE -ne 0) { throw "上传 Release 文件失败。" }
+
+            $RemoteDirectory = Join-Path $env:RUNNER_TEMP "verified-release"
+            New-Item -ItemType Directory -Path $RemoteDirectory | Out-Null
+            gh release download $env:TAG --repo $env:REPOSITORY --dir $RemoteDirectory
+            if ($LASTEXITCODE -ne 0) { throw "重新下载 Release 文件失败。" }
+            foreach ($Asset in $Manifest.assets) {
+              $RemotePath = Join-Path $RemoteDirectory $Asset.name
+              if (-not (Test-Path $RemotePath -PathType Leaf) -or
+                  (Get-FileHash $RemotePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Asset.sha256) {
+                throw "Release 文件复核失败：$($Asset.name)"
               }
             }
+
+            gh release edit $env:TAG --repo $env:REPOSITORY --draft=false --latest
+            if ($LASTEXITCODE -ne 0) { throw "发布 Release 草稿失败。" }
+            $Published = $true
           } catch {
-            if (Test-Path $BackupDirectory) {
-              $BackupAssets = @(Get-ChildItem $BackupDirectory -File | Where-Object Name -Like "NaiWaPet-$Version-win-x64*" | ForEach-Object FullName)
-              gh release upload $Tag @BackupAssets --repo "${{ github.repository }}" --clobber
-              $BackupNotes = Join-Path $BackupDirectory "release-notes.md"
-              $BackupTitle = [System.IO.File]::ReadAllText((Join-Path $BackupDirectory "release-title.txt"))
-              gh release edit $Tag `
-                --repo "${{ github.repository }}" `
-                --title $BackupTitle `
-                --notes-file $BackupNotes `
-                --latest
+            if ($DraftCreated -and -not $Published) {
+              gh release delete $env:TAG --repo $env:REPOSITORY --yes
             }
             throw
           }
 
-          if (Test-Path $BackupDirectory) {
-            Remove-Item $BackupDirectory -Recurse -Force
+          $Release = gh api "repos/$env:REPOSITORY/releases/tags/$env:TAG" | ConvertFrom-Json
+          if ($Release.draft -or -not $Release.immutable) {
+            throw "Release 已发布但不可变状态未生效；请立即检查仓库设置。"
+          }
+          for ($Attempt = 1; $Attempt -le 10; $Attempt++) {
+            gh release verify $env:TAG --repo $env:REPOSITORY
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($Attempt -eq 10) { throw "Release attestation 验证失败。" }
+            Start-Sleep -Seconds 6
+          }
+          foreach ($Path in $AssetPaths) {
+            gh release verify-asset $env:TAG $Path --repo $env:REPOSITORY
+            if ($LASTEXITCODE -ne 0) { throw "Release 文件证明验证失败：$Path" }
           }

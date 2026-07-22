@@ -1,0 +1,57 @@
+<Window x:Class="NaiWaPet.NoticesWindow"
+        x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于与开源许可"
+        Width="760"
+        Height="650"
+        MinWidth="560"
+        MinHeight="460"
+        WindowStartupLocation="CenterScreen"
+        Background="#FFF8E7"
+        Icon="Assets/App/naiwa.png">
+  <Grid Margin="22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <DockPanel>
+      <Image Source="Assets/App/naiwa.png" Width="52" Height="52" Margin="0,0,14,0" />
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="奶蛙桌宠" FontSize="22" FontWeight="SemiBold" Foreground="#3B2B16" />
+        <TextBlock x:Name="VersionText" Margin="0,3,0,0" Foreground="#806A42" />
+      </StackPanel>
+    </DockPanel>
+
+    <TextBlock Grid.Row="1"
+               Margin="0,14,0,10"
+               TextWrapping="Wrap"
+               Foreground="#5C4828"
+               Text="NaiWaPet 不连接网络，也不收集遥测。下方列出本程序及自包含 .NET/WPF 运行时随附的完整许可和第三方声明。" />
+
+    <TextBox x:Name="NoticeTextBox"
+             Grid.Row="2"
+             IsReadOnly="True"
+             TextWrapping="NoWrap"
+             AcceptsReturn="True"
+             AcceptsTab="True"
+             FontFamily="Consolas"
+             FontSize="12"
+             HorizontalScrollBarVisibility="Auto"
+             VerticalScrollBarVisibility="Auto"
+             Background="White"
+             BorderBrush="#FFE0C98C"
+             Padding="12" />
+
+    <Button Grid.Row="3"
+            Margin="0,12,0,0"
+            Padding="18,8"
+            HorizontalAlignment="Right"
+            IsDefault="True"
+            Content="关闭"
+            Click="OnClose" />
+  </Grid>
+</Window>

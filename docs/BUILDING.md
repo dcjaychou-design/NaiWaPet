@@ -1,22 +1,33 @@
 # 构建与发布
 
+## 固定工具版本
+
+正式构建使用 Windows 11 x64、.NET 10 SDK 10.0.302 和 .NET/WPF 运行时 10.0.10。`global.json` 禁止 SDK 自动前滚；运行时版本和应用版本统一记录在 `Directory.Build.props`。
+
 ## 一般构建
 
-在 Windows 11 x64 上安装 .NET 10 SDK，然后运行：
+在 Windows 11 x64 上运行：
 
 ```powershell
 ./build.ps1
 ```
 
-脚本会还原、以 Release 编译、运行核心测试，并在找到 Python 时校验所有已提交素材。
+脚本会还原依赖、以 Release 配置编译、运行核心测试，并在找到 Python 时检查发布元数据、Markdown 本地链接和全部已提交素材。项目启用推荐级 .NET 分析器、NuGet 安全审计和 warnings-as-errors。
 
-## 生成便携发布物
+## 生成并验证发布物
 
 ```powershell
-./package.ps1 -Version 1.0.0
+./package.ps1
 ```
 
-版本号必须符合语义化版本格式，例如 `1.0.0` 或 `1.0.0-beta.1`。脚本会同步设置包版本、程序集版本、文件版本和信息版本，并生成可直接运行的单文件、自包含 `win-x64` 程序、便携 ZIP，以及对应的 SHA-256 校验文件。当前正式版本保持为 `1.0.0`。
+打包脚本从 `Directory.Build.props` 读取版本，不接受与源码版本不同的外部版本。它会生成以下四个文件：
+
+- `NaiWaPet-1.0.1-win-x64.exe`
+- `NaiWaPet-1.0.1-win-x64.exe.sha256`
+- `NaiWaPet-1.0.1-win-x64-portable.zip`
+- `NaiWaPet-1.0.1-win-x64-portable.zip.sha256`
+
+`verify-package.ps1` 会执行程序冒烟测试、核对 Windows 文件版本和两个 SHA-256 文件，并检查 ZIP 文件清单、独立 EXE 与 ZIP 内 EXE 的字节一致性、`LICENSE` 的 LF 换行及全部运行时许可文件。显式传入 `./package.ps1 -Version 1.0.1` 仅用于额外断言，不能覆盖源码版本。
 
 ## 重新生成动画素材
 
@@ -35,15 +46,15 @@ tools/.venv/Scripts/python tools/verify_assets.py
 
 ## GitHub 发布
 
-推送普通提交或 Pull Request 会运行 `CI`。创建版本标签会自动构建单文件 EXE 和便携 ZIP：
+普通提交和 Pull Request 运行 `CI`。只有 CI 与 CodeQL 均通过、分支保持最新且对话已解决时，变更才能通过 Pull Request 合并到 `main`。
 
-```powershell
-git tag v1.0.0
-git push origin v1.0.0
-```
+发布前需要完成以下准备：
 
-`release.yml` 会运行测试、构建 Windows x64 发布物、核对程序文件版本、执行单文件冒烟测试、生成哈希，并创建 GitHub Release。每个版本还必须提供 `docs/releases/版本号.md` 作为面向使用者的发布说明。
+1. `main` 的 CI 和 CodeQL 通过，工作区没有未提交改动。
+2. `Directory.Build.props`、README、CHANGELOG 和 `docs/releases/版本号.md` 已同步。
+3. 仓库的 Release Immutability 保持启用。
+4. 创建指向当前 `main` 的版本标签并推送，例如 `v1.0.1`。
 
-如果同一标签的 Release 已经存在，工作流会保留发布页面，覆盖更新 EXE、ZIP 和两个 SHA-256 文件，同时更新发布说明；上传完成后还会重新下载四个文件并逐一比对 SHA-256，避免源码、说明和下载文件不同步。发布工作流也可以在 GitHub Actions 页面输入已有标签后手动重跑。
+Release 工作流首先在不检出源码的情况下验证标签格式、标签提交和当前 `main`；随后在只读权限任务中检出 `refs/tags/...`、构建并完整验证发布包；最后在独立的最小写权限任务中创建草稿、上传并重新下载比对四个文件。全部一致后才公开 Release。
 
-普通 CI 也可在 GitHub Actions 页面手动运行。同一分支有新提交时，旧的未完成 CI 会自动取消；单次任务最多运行 30 分钟。
+已经存在的 Release（包括草稿）不会被覆盖。发布成功后，工作流要求 GitHub 返回 `immutable=true`，并使用 `gh release verify` 和 `gh release verify-asset` 验证发布证明。`v1.0.0` 是启用不可变发布前的历史版本，不应修改或重新发布。

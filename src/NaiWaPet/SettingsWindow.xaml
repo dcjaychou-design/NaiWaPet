@@ -72,6 +72,7 @@
         <TextBlock TextWrapping="Wrap" Foreground="#806A42" LineHeight="20">
           拖动奶蛙可移动；快速甩出会产生弹跳；滚轮可直接缩放；右键打开快捷菜单。所有设置只保存在本机。
         </TextBlock>
+        <Button Content="关于与开源许可" HorizontalAlignment="Left" Margin="0,12,0,0" Click="OnNotices" />
       </StackPanel>
     </Border>
 

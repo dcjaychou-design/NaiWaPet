@@ -25,6 +25,7 @@ internal sealed partial class App : System.Windows.Application, IDisposable
             {
                 using var player = new Services.SpriteAnimationPlayer();
                 player.ValidateAssets();
+                _ = Services.OpenSourceNotices.LoadAll();
                 Shutdown(0);
             }
 #pragma warning disable CA1031 // The smoke test must convert every startup failure into a nonzero exit code.

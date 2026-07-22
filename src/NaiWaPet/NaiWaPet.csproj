@@ -20,10 +20,6 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>embedded</DebugType>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0</InformationalVersion>
     <Product>奶蛙桌宠</Product>
     <Description>Windows 11 x64 透明奶蛙桌宠</Description>
     <Authors>dcjoker</Authors>
@@ -42,6 +38,27 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Assets\Audio\laugh.wav">
       <LogicalName>NaiWaPet.Assets.Audio.laugh.wav</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\LICENSE">
+      <LogicalName>NaiWaPet.Licenses.Project.LICENSE.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\NOTICE.md">
+      <LogicalName>NaiWaPet.Licenses.Project.NOTICE.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\THIRD_PARTY_NOTICES.md">
+      <LogicalName>NaiWaPet.Licenses.Project.THIRD_PARTY_NOTICES.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\licenses\dotnet\10.0.10\LICENSE.txt">
+      <LogicalName>NaiWaPet.Licenses.DotNet.LICENSE.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\licenses\dotnet\10.0.10\THIRD-PARTY-NOTICES.txt">
+      <LogicalName>NaiWaPet.Licenses.DotNet.THIRD_PARTY_NOTICES.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\licenses\wpf\10.0.10\LICENSE.txt">
+      <LogicalName>NaiWaPet.Licenses.Wpf.LICENSE.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\licenses\wpf\10.0.10\THIRD-PARTY-NOTICES.txt">
+      <LogicalName>NaiWaPet.Licenses.Wpf.THIRD_PARTY_NOTICES.txt</LogicalName>
     </EmbeddedResource>
     <Resource Include="Assets\App\naiwa.png" />
   </ItemGroup>
