@@ -69,7 +69,7 @@ def verify(root: Path, expected_tag: str | None) -> str:
     for property_name in ("Version", "AssemblyVersion", "FileVersion", "InformationalVersion"):
         require(project.find(f".//{property_name}") is None, f"{property_name} must not be duplicated in NaiWaPet.csproj")
     require(project.find(".//RuntimeFrameworkVersion") is None,
-            "RuntimeFrameworkVersion breaks Windows SDK reference resolution; package.ps1 verifies the resolved runtime packs")
+            "RuntimeFrameworkVersion breaks Windows SDK reference resolution; package.ps1 verifies installed runtime versions")
     manifest = ET.parse(root / "src/NaiWaPet/app.manifest").getroot()
     identity = manifest.find("{urn:schemas-microsoft-com:asm.v1}assemblyIdentity")
     require(identity is not None and identity.get("version") == f"{numeric}.0", "Windows manifest version is out of sync")

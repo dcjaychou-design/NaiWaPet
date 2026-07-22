@@ -25,6 +25,13 @@ if ($FileVersion -ne "$($Version.Split('-')[0].Split('+')[0]).0") {
 if ($RuntimeVersion -ne "10.0.10") {
     throw "当前发布必须固定使用 .NET 运行时 10.0.10，实际为 $RuntimeVersion。"
 }
+$InstalledRuntimes = @(& dotnet --list-runtimes)
+foreach ($Framework in @("Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App")) {
+    $Pattern = "^$([regex]::Escape($Framework))\s+$([regex]::Escape($RuntimeVersion))\s+\["
+    if (-not ($InstalledRuntimes | Where-Object { $_ -match $Pattern })) {
+        throw "未安装发布所需的固定运行时：$Framework $RuntimeVersion"
+    }
+}
 
 $Artifacts = Join-Path $ProjectRoot "artifacts"
 $PublishDirectory = Join-Path $Artifacts "publish"
@@ -58,16 +65,6 @@ dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
     -p:DebugType=None
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish 失败，退出码：$LASTEXITCODE"
-}
-$AssetsFile = Join-Path $ProjectRoot "src/NaiWaPet/obj/project.assets.json"
-$ResolvedAssets = Get-Content $AssetsFile -Raw | ConvertFrom-Json -AsHashtable
-foreach ($RuntimePack in @(
-    "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/$RuntimeVersion",
-    "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/$RuntimeVersion"
-)) {
-    if (-not $ResolvedAssets.libraries.ContainsKey($RuntimePack)) {
-        throw "发布未使用固定运行时包：$RuntimePack"
-    }
 }
 
 & (Join-Path $ProjectRoot "verify-windows.ps1") `
