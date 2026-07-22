@@ -59,6 +59,16 @@ dotnet publish (Join-Path $ProjectRoot "src/NaiWaPet/NaiWaPet.csproj") `
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish 失败，退出码：$LASTEXITCODE"
 }
+$AssetsFile = Join-Path $ProjectRoot "src/NaiWaPet/obj/project.assets.json"
+$ResolvedAssets = Get-Content $AssetsFile -Raw | ConvertFrom-Json -AsHashtable
+foreach ($RuntimePack in @(
+    "Microsoft.NETCore.App.Runtime.win-x64/$RuntimeVersion",
+    "Microsoft.WindowsDesktop.App.Runtime.win-x64/$RuntimeVersion"
+)) {
+    if (-not $ResolvedAssets.libraries.ContainsKey($RuntimePack)) {
+        throw "发布未使用固定运行时包：$RuntimePack"
+    }
+}
 
 & (Join-Path $ProjectRoot "verify-windows.ps1") `
     -Executable "artifacts/publish/NaiWaPet.exe" `
